@@ -27,12 +27,37 @@ def main():
         else:
             print("Invalid FEN; exiting...")
             return None
+
+    # INITIALIZE UART #
     global ser
-    ser = serial.Serial('/dev/ttyS0')
-    ser.write(b'Initialized /dev/ttyS0')
-    sleep(0.05)
-    bytes_to_read = ser.inWaiting()
-    print(ser.read(bytes_to_read).decode('utf-8'))
+    ser = serial.Serial(
+        port="/dev/ttyS0", 
+        baudrate = 9600, 
+        parity=serial.PARITY_NONE, 
+        stopbits=serial.STOPBITS_ONE, 
+        bytesize=serial.EIGHTBITS,
+    )
+    
+    # START SIGNAL HANDSHAKE #
+    start_signal = ""
+
+    while (start_signal != "S"):
+        print("Waiting for start signal...")
+        start_signal = ser.read(1).decode('ascii')
+        sleep(2)
+
+    print("Received S")
+    ser.write(b"S")
+    print("Sent back S")
+    
+    player_color = ""
+    while (not (player_color == "W" or player_color == "B")):
+        print("Waiting for player color...")
+        player_color = ser.read(1).decode('ascii')
+        sleep(2)
+    print(f"Received color: {player_color}")
+    return 0
+
     player_color = input("Select a color (\"W\" or \"B\"): ")
     while player_color not in ["W", "B"]:
         player_color = input("Incorrect input. Select a color (\"W\" or \"B\"): ")

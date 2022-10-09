@@ -9,9 +9,6 @@ ser = serial.Serial(
     bytesize=serial.EIGHTBITS,
 )
 while True:
-    received_data = ser.read()
-    sleep(1)
-    data_left = ser.inWaiting()
-    received_data += ser.read(data_left)
-    print(received_data)
-    print("...")
+    ser.write(b'Hello World')
+    print("Wrote to /dev/ttyS0")
+    sleep(3)
