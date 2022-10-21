@@ -1,0 +1,184 @@
+import chess
+import chess.engine
+import sys
+import os
+from stockfish import Stockfish
+from time import sleep
+import serial
+
+# PACKET STRUCTURE DEFINES
+START_BYTE           =   0x0A             # Start byte at beginning of every instruction
+
+# INSTRUCTION DEFINES
+RESET_INSTR          =   0x00
+START_W_INSTR        =   0x01
+START_B_INSTR        =   0x02
+HUMAN_MOVE_INSTR     =   0x03
+ROBOT_MOVE_INSTR     =   0x04
+GAME_STATUS_INSTR    =   0x05
+ILLEGAL_MOVE_INSTR   =   0x06
+LEGAL_MOVE_INSTR     =   0x07
+
+# GAME STATUS OPERANDS
+GAME_ONGOING_OP      =   0x01
+GAME_CHECKMATE_OP    =   0x02
+GAME_STALEMATE_OP    =   0x03
+
+# FULL INSTRUCTIONS
+RESET            =       0x0A00           # Reset a terminated game
+START_W          =       0x0A10           # Start signal if human plays white (goes first)
+START_B          =       0x0A20           # Start signal if human plays black (goes second)
+HUMAN_MOVE       =       0x0A350000000000 # 5 operand bytes for UCI representation of move (fill in trailing zeroes with move)
+ROBOT_MOVE       =       0x0A450000000000 # 5 operand bytes for UCI representation of move (fill in trailing zeroes with move)
+GAME_ONGOING     =       0x0A5101         # Declare the game has not ended
+GAME_CHECKMATE   =       0x0A5102         # Declare the game has ended to checkmate
+GAME_STALEMATE   =       0x0A5103         # Declare the game has ended to stalemate
+ILLEGAL_MOVE     =       0x0A60           # Declare the human has made an illegal move
+LEGAL_MOVE       =       0x0A70           # Declare the human has made a legal move
+
+IN_PROGRESS = True
+TERMINATED = False
+
+global game_state
+game_state = IN_PROGRESS
+
+def bytes_to_int(byte_stream):
+    return int(byte_stream.hex(), 16)
+
+def main():
+    #stockfish = Stockfish(path="/home/thegreatgambit/Documents/Capstone-PyChess/stockfish/src/stockfish")
+    #stockfish.update_engine_parameters({'Hash':64})
+    #stockfish.set_elo_rating(2000)
+    engine = chess.engine.SimpleEngine.popen_uci("/home/thegreatgambit/Documents/Capstone-PyChess/stockfish/src/stockfish")
+    engine.configure({"Hash": 64})
+    board = chess.Board()
+
+    # Initialize UART
+    global ser
+    ser = serial.Serial(
+        port="/dev/serial0", 
+        baudrate = 9600, 
+        parity=serial.PARITY_NONE, 
+        stopbits=serial.STOPBITS_ONE, 
+        bytesize=serial.EIGHTBITS,
+    )
+    
+    # Flush both UART buffers
+    ser.reset_input_buffer()
+    ser.reset_output_buffer()    
+
+    while True:
+        byte = bytes_to_int(ser.read(1))
+        raw_operand = b""
+        int_operand = -1
+        dec_operand = ""
+        if byte == START_BYTE:
+            instr_and_op_len = bytes_to_int(ser.read(1))
+            instr = instr_and_op_len >> 4
+            op_len = instr_and_op_len & (~0xF0)
+            print(f"Raw instr and op len: {hex(instr_and_op_len)}")
+            print(f"Raw instruction: {hex(instr)}")
+            print(f"Raw operand len: {hex(op_len)}")
+            if (op_len > 0):
+                raw_operand = ser.read(op_len)
+                int_operand = bytes_to_int(raw_operand)
+                dec_operand = raw_operand.decode('ascii')
+                print(f"Raw operand: {int_operand}")
+                print(f"Dec operand: {dec_operand}")
+            if instr == RESET_INSTR:
+                # TODO: actually do some resetting
+                print("Resetting system")
+            elif instr == START_W_INSTR:
+                # TODO: Any other setup needed? 
+                print("Human playing white; human to start")
+                player_color = "W"
+            elif instr == START_B_INSTR:
+                print("Human playing black; robot to start")
+                player_color = "B"
+            elif instr == HUMAN_MOVE_INSTR:
+                # Remove the '_' from the move, or leave any promotions
+                player_next_move = chess.Move.from_uci(parse_move(dec_operand))
+
+                # If the move the player made was not legal, do not push it; alert the MSP
+                if player_next_move not in board.legal_moves:
+                    ser.write(b'\x0A\x60') # ILLEGAL_MOVE
+                else:
+                    ser.write(b'\x0A\x70') # LEGAL_MOVE
+
+                    # Update the board with the player's move
+                    board.push(player_next_move)
+                    # Check the game state and send information to the MSP
+                    check_game_state(board)
+
+                    # Get Stockfish's move in 3 seconds
+                    stockfish_next_move = engine.play(board, chess.engine.Limit(time=3)).move 
+
+                    5th_byte = get_5th_byte(move:chess.Move);
+
+                    is_capture = False
+                    is_castling = False
+                    is_promotion = False
+                    is_en_passant = False
+
+                    if board.is_capture(stockfish_next_move):
+                        is_capture = True
+                    if board.is_castling(stockfish_next_move):
+                        is_castling = True
+                    if board.is_en_passant(stockfish_next_move):
+                        is_en_passant = True
+                    if len(stockfish_next_move) == 5:
+                        is_promotion = True
+
+                    
+                    chess_board.push(stockfish_next_move)
+                print(f"Human makes move: {player_next_move}")
+            else:
+                print("Did not get a valid instruction")
+            print("--------------------")
+        else:
+            continue
+
+    return 0
+
+def parse_move(move):
+    if len(move) != 5:
+        print("DEBUG: Bad move given! Move length should be 5.")
+        return move
+    if move[4] == "_":
+        return move[0:4]
+
+def get_5th_byte(board:chess.Board, move:chess.Move):
+    # Castling byte
+    if board.is_castling(move):
+        return "L"
+    # En passant byte
+    if board.is_en_passant(move):
+        return "E"
+    if board.is_capture(stockfish_next_move):
+       if len(move) == 5:
+           return "q"
+       else:
+           return "C"
+    if len(move) == 5:
+        return "Q"
+
+    
+
+def check_game_state(board:chess.Board):
+    if board.is_stalemate():
+        # Send GAME_STALEMATE instr
+        print("Stalemate; game over")
+        game_state = TERMINATED
+        ser.write(b'\x0A\x51\x03')
+    elif board.is_checkmate():
+        # Send GAME_CHECKMATE instr
+        print("Checkmate; game over")
+        game_state = TERMINATED
+        ser.write(b'\x0A\x51\x02')
+    else:
+        # Send GAME_ONGOING instr
+        print("The game continues")
+        ser.write(b'\x0A\x51\x01')
+
+if __name__ == "__main__":
+    main()
