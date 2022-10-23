@@ -6,18 +6,18 @@
     <a href="https://cadlab.io/project/25988/main/files">
         <img src="https://github.com/TheGreatGambit/Capstone-Electrical/blob/main/Images/logo_cadlab_small.png" alt="CadLab Logo" style="height:40px;width:200px">
     </a>
-    <!-- <a href="https://github.com/TheGreatGambit/Capstone-Electrical">
+    <a href="https://github.com/TheGreatGambit/Capstone-Electrical">
         <img src="https://github.com/TheGreatGambit/Capstone-Electrical/blob/main/Images/logo_electrical_small.png" alt="Electrical Logo - Small" style="height:40px;width:200px">
-    </a> -->
+    </a>
     <a href="https://github.com/TheGreatGambit/Capstone-Software">
         <img src="https://github.com/TheGreatGambit/Capstone-Electrical/blob/main/Images/logo_software_small.png" alt="Software Logo - Small" style="height:40px;width:200px">
     </a>
     <a href="https://github.com/TheGreatGambit/Capstone-Mechanical-CAD">
         <img src="https://github.com/TheGreatGambit/Capstone-Electrical/blob/main/Images/logo_mechanical_small.png" alt="Mechanical Logo - Small" style="height:40px;width:200px">
     </a>
-    <a href="https://github.com/TheGreatGambit/Capstone-PyChess">
+    <!-- <a href="https://github.com/TheGreatGambit/Capstone-PyChess">
         <img src="https://github.com/TheGreatGambit/Capstone-Electrical/blob/main/Images/logo_pychess_small.png" alt="PyChess Logo - Small" style="height:40px;width:200px">
-    </a>
+    </a> -->
 </div>
 
 <!-- Brief overview of this repo -->
