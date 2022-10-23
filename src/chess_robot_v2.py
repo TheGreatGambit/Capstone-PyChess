@@ -17,12 +17,20 @@ HUMAN_MOVE_INSTR     =   0x03
 ROBOT_MOVE_INSTR     =   0x04
 GAME_STATUS_INSTR    =   0x05
 ILLEGAL_MOVE_INSTR   =   0x06
-LEGAL_MOVE_INSTR     =   0x07
 
 # GAME STATUS OPERANDS
 GAME_ONGOING_OP      =   0x01
 GAME_CHECKMATE_OP    =   0x02
 GAME_STALEMATE_OP    =   0x03
+
+# INSTRUCTION AND OPERAND LENGTH BYTES
+RESET_INSTR_AND_LEN         =     0x00
+START_W_INSTR_AND_LEN       =     0x10
+START_B_INSTR_AND_LEN       =     0x20
+HUMAN_MOVE_INSTR_AND_LEN    =     0x35
+ROBOT_MOVE_INSTR_AND_LEN    =     0x45
+GAME_STATUS_INSTR_AND_LEN   =     0x51
+ILLEGAL_MOVE_INSTR_AND_LEN  =     0x60
 
 # FULL INSTRUCTIONS
 RESET            =       0x0A00           # Reset a terminated game
@@ -34,7 +42,6 @@ GAME_ONGOING     =       0x0A5101         # Declare the game has not ended
 GAME_CHECKMATE   =       0x0A5102         # Declare the game has ended to checkmate
 GAME_STALEMATE   =       0x0A5103         # Declare the game has ended to stalemate
 ILLEGAL_MOVE     =       0x0A60           # Declare the human has made an illegal move
-LEGAL_MOVE       =       0x0A70           # Declare the human has made a legal move
 
 IN_PROGRESS = True
 TERMINATED = False
@@ -46,9 +53,6 @@ def bytes_to_int(byte_stream):
     return int(byte_stream.hex(), 16)
 
 def main():
-    #stockfish = Stockfish(path="/home/thegreatgambit/Documents/Capstone-PyChess/stockfish/src/stockfish")
-    #stockfish.update_engine_parameters({'Hash':64})
-    #stockfish.set_elo_rating(2000)
     engine = chess.engine.SimpleEngine.popen_uci("/home/thegreatgambit/Documents/Capstone-PyChess/stockfish/src/stockfish")
     engine.configure({"Hash": 64})
     board = chess.Board()
@@ -65,8 +69,9 @@ def main():
     
     # Flush both UART buffers
     ser.reset_input_buffer()
-    ser.reset_output_buffer()    
+    ser.reset_output_buffer()
 
+    # The main program loop
     while True:
         byte = bytes_to_int(ser.read(1))
         raw_operand = b""
@@ -101,36 +106,34 @@ def main():
 
                 # If the move the player made was not legal, do not push it; alert the MSP
                 if player_next_move not in board.legal_moves:
-                    ser.write(b'\x0A\x60') # ILLEGAL_MOVE
+                    illegal_move_instr_bytes = bytearray([START_BYTE, ILLEGAL_MOVE_INSTR_AND_LEN])
+                    ser.write(illegal_move_instr_bytes) # ILLEGAL_MOVE
                 else:
-                    ser.write(b'\x0A\x70') # LEGAL_MOVE
-
                     # Update the board with the player's move
                     board.push(player_next_move)
                     # Check the game state and send information to the MSP
-                    check_game_state(board)
+                    ser.write(check_game_state(board))
 
-                    # Get Stockfish's move in 3 seconds
-                    stockfish_next_move = engine.play(board, chess.engine.Limit(time=3)).move 
-
-                    5th_byte = get_5th_byte(move:chess.Move);
-
-                    is_capture = False
-                    is_castling = False
-                    is_promotion = False
-                    is_en_passant = False
-
-                    if board.is_capture(stockfish_next_move):
-                        is_capture = True
-                    if board.is_castling(stockfish_next_move):
-                        is_castling = True
-                    if board.is_en_passant(stockfish_next_move):
-                        is_en_passant = True
-                    if len(stockfish_next_move) == 5:
-                        is_promotion = True
-
+                    # Get Stockfish's move in 1 second
+                    stockfish_next_move = engine.play(board, chess.engine.Limit(time=1)).move
+                    # Convert the Move object to a UCI string
+                    stockfish_next_move_uci = stockfish_next_move.uci()
+                    # If it's a promotion, it will be overriden to a queen automatically
+                    if len(stockfish_next_move_uci) == 5:
+                        stockfish_next_move_uci = stockfish_next_move_uci[0:4]
                     
-                    chess_board.push(stockfish_next_move)
+                    # Get the fifth operand byte to be sent
+                    fifth_byte = get_fifth_byte(board, stockfish_next_move)
+                    # Package the bytes (ord(c) converts characters to ASCII)
+                    robot_move_instr_bytes = [0x0A, 0x45] + [ord(c) for c in stockfish_next_move_uci] + [ord(fifth_byte)]
+                    robot_move_instr_checksum = 0
+                    for byte in robot_move_instr_bytes:
+                        robot_move_instr_checksum += byte
+                    robot_move_instr_checksum = robot_move_instr_checksum % 512
+                    # Send the ROBOT_MOVE_INSTR to the MSP
+                    ser.write(robot_move_instr_bytes)
+                    # Update the board with the robot's move
+                    chess_board.push(chess.Move.from_uci(stockfish_next_move_uci))
                 print(f"Human makes move: {player_next_move}")
             else:
                 print("Did not get a valid instruction")
@@ -140,45 +143,56 @@ def main():
 
     return 0
 
-def parse_move(move):
+def parse_move_from_(move):
     if len(move) != 5:
         print("DEBUG: Bad move given! Move length should be 5.")
         return move
     if move[4] == "_":
         return move[0:4]
 
-def get_5th_byte(board:chess.Board, move:chess.Move):
-    # Castling byte
+def get_fith_byte(board:chess.Board, move:chess.Move):
+    # Castling
     if board.is_castling(move):
         return "L"
-    # En passant byte
+    # En passant
     if board.is_en_passant(move):
-        return "E"
+        return "P"
+    # Captures have two possibilities: regular captures and promotion captures
     if board.is_capture(stockfish_next_move):
+       # Promotion captures
        if len(move) == 5:
            return "q"
+       # Regular captures
        else:
            return "C"
+    # Non-capture promotions
     if len(move) == 5:
         return "Q"
 
-    
+    # Not a special move
+    return "_"
 
 def check_game_state(board:chess.Board):
+    game_state_instr_bytes = bytearray([])
+
     if board.is_stalemate():
-        # Send GAME_STALEMATE instr
+        # Return GAME_STALEMATE instr
         print("Stalemate; game over")
         game_state = TERMINATED
-        ser.write(b'\x0A\x51\x03')
+        game_state_instr_bytes = bytearray([START_BYTE, GAME_STATUS_INSTR_AND_LEN, GAME_STALEMATE])
+        return game_state_instr_bytes
     elif board.is_checkmate():
-        # Send GAME_CHECKMATE instr
+        # Return GAME_CHECKMATE instr
         print("Checkmate; game over")
         game_state = TERMINATED
-        ser.write(b'\x0A\x51\x02')
+        game_state_instr_bytes = bytearray([START_BYTE, GAME_STATUS_INSTR_AND_LEN, GAME_CHECKMATE])
+        return game_state_instr_bytes
     else:
-        # Send GAME_ONGOING instr
+        # Return GAME_ONGOING instr
         print("The game continues")
-        ser.write(b'\x0A\x51\x01')
+        game_state_instr_bytes = bytearray([START_BYTE, GAME_STATUS_INSTR_AND_LEN, GAME_ONGOING])
+
+    return game_state_instr_bytes
 
 if __name__ == "__main__":
     main()
