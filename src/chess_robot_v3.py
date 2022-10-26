@@ -1,10 +1,21 @@
+#!/usr/bin/env python
+"""
+The primary script on the Raspberry Pi for The Great Gambit's autonomous chess robot. 
+Uses the python-chess library and Stockfish to validate moves sent from the MSP, determine 
+board state, and generate new moves to send to the MSP for the robot to make. Additionally, 
+uses python-serial to enable straightforward UART communication with the MSP.
+"""
+
 import chess
 import chess.engine
-import sys
-import os
 from stockfish import Stockfish
-from time import sleep
 import serial
+
+__author__ = "Keenan Alchaar"
+__copyright__ = "Copyright 2022"
+__version__ = "v3"
+__email__ = "ka5nt@virginia.edu"
+__status__ = "Development"
 
 # PACKET STRUCTURE DEFINES
 START_BYTE           =   0x0A             # Start byte at beginning of every instruction
@@ -143,12 +154,13 @@ def main():
 
 def parse_move(move: str) -> str:
 """
-Takes a move from the MSP in UCI notation and removes the trailing '_' if it has it.
+Takes a move from the MSP in UCI notation, removes the trailing '_' if it has it, 
+then returns it. 
 
-:param move: a move in UCI notation which is 5 characters long (as all messages from the MSP are
+:param move: A move in UCI notation which is 5 characters long (as all messages from the MSP are
              expected to be this long)
 
-:returns: the move, shortened to 4 characters or kept at 5 (must be a promotion in this case)
+:returns: The move, shortened to 4 characters or kept at 5 (must be a promotion in this case)
 """
     if len(move) != 5:
         print("DEBUG: Bad move given! Move length should be 5.")
@@ -156,17 +168,18 @@ Takes a move from the MSP in UCI notation and removes the trailing '_' if it has
     if move[4] == "_":
         return move[0:4]
 
-# Given a move and a board state, returns the appropriate fifth byte to describe the nature of the move 
-# to the MSP. Includes captures, castling, promotions, and en passant. 
+
 def get_fith_byte(board: chess.Board, move: chess.Move) -> str:
 """
-Given a move and a board state, returns the appropriate fifth byte to describe the nature of the move to the MSP. 
+Given a move object and a board state object, returns the appropriate fifth byte to 
+describe the nature of the move to the MSP. 
 
-:param move: a move in UCI notation
+:param board: A chess.Board object representing the current board state
+:param move: A chess.Move object representing the move to be made
 
-:returns:    the move, shortened to 4 characters or kept at 5 (must be a promotion in this case)
+:returns: A one-character string which will be appended to the other 4 characters of the UCI 
+          string to be sent to the MSP. 
 """
-
     # Castling
     if board.is_castling(move):
         return "L"
@@ -188,40 +201,45 @@ Given a move and a board state, returns the appropriate fifth byte to describe t
     # Not a special move
     return "_"
 
-# A function for 
-def check_game_state(board: chess.Board) -> bytearray:
-    game_state_instr_bytes = bytearray([])
+
+def check_game_state(board: chess.Board) -> list:
+"""
+Given a board, checks the game state to determine if the game has ended. 
+
+:param board: A chess.Board object representing the board state of interest
+
+:returns: A list of the bytes to be sent to the MSP 
+""" 
+    game_state_instr_bytes = []
 
     if board.is_stalemate():
         # Return GAME_STALEMATE instr
         print("Stalemate; game over")
         game_state = TERMINATED
-        game_state_instr_bytes = bytearray([START_BYTE, GAME_STATUS_INSTR_AND_LEN, GAME_STALEMATE])
-        return game_state_instr_bytes
+        game_state_instr_bytes = [START_BYTE, GAME_STATUS_INSTR_AND_LEN, GAME_STALEMATE_OP]
     elif board.is_checkmate():
         # Return GAME_CHECKMATE instr
         print("Checkmate; game over")
         game_state = TERMINATED
-        game_state_instr_bytes = bytearray([START_BYTE, GAME_STATUS_INSTR_AND_LEN, GAME_CHECKMATE])
-        return game_state_instr_bytes
+        game_state_instr_bytes = [START_BYTE, GAME_STATUS_INSTR_AND_LEN, GAME_CHECKMATE_OP]
     else:
         # Return GAME_ONGOING instr
         print("The game continues")
-        game_state_instr_bytes = bytearray([START_BYTE, GAME_STATUS_INSTR_AND_LEN, GAME_ONGOING])
+        game_state_instr_bytes = [START_BYTE, GAME_STATUS_INSTR_AND_LEN, GAME_ONGOING_OP]
 
+    checksum_bytes = fl16_get_check_bytes(fletcher16_nums(game_state_instr_bytes))
+    game_state_instr_bytes += checksum_bytes
     return game_state_instr_bytes
 
-def fletcher16_str(data : str) -> int:
-    sum1 = 0
-    sum2 = 0
-            
-    for char in data:
-        sum1 = (sum1 + ord(string[i])) % 255
-        sum2 = (sum2 + sum1) % 255
-                                    
-    return (sum2 << 8) | sum1
 
 def fletcher16_nums(data: list) -> int:
+"""
+Calculates and returns the Fletcher-16 checksum of a given list of 8-bit numbers.
+
+:param data: A list containing the 8-bit nums to be evaluated
+
+:returns: The Fletcher-16 checksum of param data
+""" 
     sum1 = 0
     sum2 = 0
 
@@ -231,12 +249,21 @@ def fletcher16_nums(data: list) -> int:
 
     return (sum2 << 8) | sum1
 
+
 def fl16_get_check_bytes(checksum: int) -> list:
+"""
+Takes a Fletcher-16 checksum and converts it into a pair of corresponding check bytes. 
+
+:param checksum: A Fletcher-16 checksum
+
+:returns: A pair of corresponding check bytes in a list
+""" 
     f0 = checksum & 0xFF;
     f1 = (checksum >> 8) & 0xFF;
     c0 = 0xFF - ((f0 + f1) % 0xFF);
     c1 = 0xFF - ((f0 + c0) % 0xFF);
     return [c0, c1]
+
 
 if __name__ == "__main__":
     main()
