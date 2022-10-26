@@ -8,7 +8,6 @@ uses python-serial to enable straightforward UART communication with the MSP.
 
 import chess
 import chess.engine
-from stockfish import Stockfish
 import serial
 
 __author__ = "Keenan Alchaar"
@@ -187,7 +186,7 @@ describe the nature of the move to the MSP.
     if board.is_en_passant(move):
         return "P"
     # Captures have two possibilities: regular captures and promotion captures
-    if board.is_capture(stockfish_next_move):
+    if board.is_capture(move):
        # Promotion captures
        if len(move) == 5:
            return "q"
