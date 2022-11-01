@@ -27,7 +27,7 @@ This project aims to create an autonomous robot capable of playing an intelligen
 This repository contains all code running on the Raspberry Pi to interface with the Stockfish chess engine, written in Python.
 
 ## UART Protocol
-### Overview
+### Protocol Overview
 In this project, the MSP432 and Raspberry Pi communicate with each other via UART. A custom instruction protocol has been created to define the various instructions that can be exchanged. In this protocol, every UART message takes the form of an instruction with the following [format](https://i.imgur.com/gRhEl1u.png): 
 - 1 start byte (0x0A)
 - 1 byte containing the instruction ID and operand length
