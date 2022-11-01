@@ -27,6 +27,7 @@ This project aims to create an autonomous robot capable of playing an intelligen
 This repository contains all code running on the Raspberry Pi to interface with the Stockfish chess engine, written in Python.
 
 ## UART Protocol
+### Overview
 In this project, the MSP432 and Raspberry Pi communicate with each other via UART. A custom instruction protocol has been created to define the various instructions that can be exchanged. In this protocol, every UART message takes the form of an instruction with the following [format](https://i.imgur.com/gRhEl1u.png): 
 - 1 start byte (0x0A)
 - 1 byte containing the instruction ID and operand length
@@ -37,6 +38,7 @@ In this project, the MSP432 and Raspberry Pi communicate with each other via UAR
 
 The start byte is used to identify the start of a UART message. The instruction ID bits define which instruction is being sent, which tells the MSP432 or Raspberry Pi what to do. The operand length bits define how many bytes long the following operand is. The operand, when present, is used by the instruction to perform its task. Finally, the check bytes (calculated from the [Fletcher-16 checksum](https://en.wikipedia.org/wiki/Fletcher's_checksum#Implementation)) are used to verify data integrity between the sender and receiver. 
 
+### Instruction Set
 The entire instruction set is summarized below: 
 | Instruction Name 	| Instruction      	| Description                                  	|
 |------------------	|------------------	|----------------------------------------------	|
@@ -49,5 +51,8 @@ The entire instruction set is summarized below:
 | GAME_CHECKMATE   	| 0x0A5102         	| Game ended to checkmate                      	|
 | GAME_STALEMATE   	| 0x0A5103         	| Game ended to stalemate                      	|
 | ILLEGAL_MOVE     	| 0x0A60           	| Illegal move made                            	|
+
+### Checksums
+To ensure data integrity across transmission, this protocol reserves the last two bytes of any UART message for checksum bytes, the calculation for which can be found [here](https://en.wikipedia.org/wiki/Fletcher's_checksum#Implementation). Before any message is sent (whether from the MSP432 or the Pi), the Fletcher-16 checksum is generated. Then, this checksum is turned into two bytes which can be appended to the end of the transmission. When the receiver receives the message, they will calculate the Fletcher-16 checksum and check bytes for the message, *not including* the final two checksum bytes. If the final two check bytes sent equal the check bytes that were manually calculated by the receiver, then the data integrity has been verified, and the receiver can continue on with the instruction. Otherwise, the data has likely been corrupted, and the sender will have to re-send the previous message. 
 
 <!-- Any repo-specific setup, etc. -->
