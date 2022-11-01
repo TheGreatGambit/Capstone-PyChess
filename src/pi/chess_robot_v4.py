@@ -153,15 +153,15 @@ def main():
     return 0
 
 def parse_move(move: str) -> str:
-"""
-Takes a move from the MSP in UCI notation, removes the trailing '_' if it has it, 
-then returns it. 
+    """
+    Takes a move from the MSP in UCI notation, removes the trailing '_' if it has it, 
+    then returns it. 
 
-:param move: A move in UCI notation which is 5 characters long (as all messages from the MSP are
-             expected to be this long)
+    :param move: A move in UCI notation which is 5 characters long (as all messages from the MSP are
+                 expected to be this long)
 
-:returns: The move, shortened to 4 characters or kept at 5 (must be a promotion in this case)
-"""
+    :returns: The move, shortened to 4 characters or kept at 5 (must be a promotion in this case)
+    """
     if len(move) != 5:
         print("DEBUG: Bad move given! Move length should be 5.")
         return move
@@ -170,16 +170,16 @@ then returns it.
 
 
 def get_fith_byte(board: chess.Board, move: chess.Move) -> str:
-"""
-Given a move object and a board state object, returns the appropriate fifth byte to 
-describe the nature of the move to the MSP. 
+    """
+    Given a move object and a board state object, returns the appropriate fifth byte to 
+    describe the nature of the move to the MSP. 
 
-:param board: A chess.Board object representing the current board state
-:param move: A chess.Move object representing the move to be made
+    :param board: A chess.Board object representing the current board state
+    :param move: A chess.Move object representing the move to be made
 
-:returns: A one-character string which will be appended to the other 4 characters of the UCI 
-          string to be sent to the MSP. 
-"""
+    :returns: A one-character string which will be appended to the other 4 characters of the UCI 
+              string to be sent to the MSP. 
+    """
     # Castling
     if board.is_castling(move):
         return "c"
@@ -203,13 +203,13 @@ describe the nature of the move to the MSP.
 
 
 def check_game_state(board: chess.Board) -> list:
-"""
-Given a board, checks the game state to determine if the game has ended. 
+    """
+    Given a board, checks the game state to determine if the game has ended. 
 
-:param board: A chess.Board object representing the board state of interest
+    :param board: A chess.Board object representing the board state of interest
 
-:returns: A list of the bytes to be sent to the MSP 
-""" 
+    :returns: A list of the bytes to be sent to the MSP 
+    """ 
     game_state_instr_bytes = []
 
     if board.is_stalemate():
@@ -233,13 +233,13 @@ Given a board, checks the game state to determine if the game has ended.
 
 
 def fletcher16_nums(data: list) -> int:
-"""
-Calculates and returns the Fletcher-16 checksum of a given list of 8-bit numbers.
+    """
+    Calculates and returns the Fletcher-16 checksum of a given list of 8-bit numbers.
 
-:param data: A list containing the 8-bit nums to be evaluated
+    :param data: A list containing the 8-bit nums to be evaluated
 
-:returns: The Fletcher-16 checksum of param data
-""" 
+    :returns: The Fletcher-16 checksum of param data
+    """ 
     sum1 = 0
     sum2 = 0
 
@@ -251,13 +251,13 @@ Calculates and returns the Fletcher-16 checksum of a given list of 8-bit numbers
 
 
 def fl16_get_check_bytes(checksum: int) -> list:
-"""
-Takes a Fletcher-16 checksum and converts it into a pair of corresponding check bytes. 
+    """
+    Takes a Fletcher-16 checksum and converts it into a pair of corresponding check bytes. 
 
-:param checksum: A Fletcher-16 checksum
+    :param checksum: A Fletcher-16 checksum
 
-:returns: A pair of corresponding check bytes in a list
-""" 
+    :returns: A pair of corresponding check bytes in a list
+    """ 
     f0 = checksum & 0xFF;
     f1 = (checksum >> 8) & 0xFF;
     c0 = 0xFF - ((f0 + f1) % 0xFF);
@@ -266,20 +266,20 @@ Takes a Fletcher-16 checksum and converts it into a pair of corresponding check 
 
 
 def validate_transmission(message: list) -> bool:
-"""
-Validates error-free transmission by checking the non-checksum bytes against the
-checksum (last two in the "message" argument) bytes. 
+    """
+    Validates error-free transmission by checking the non-checksum bytes against the
+    checksum (last two in the "message" argument) bytes. 
 
-:param message: A list of bytes representing the entire instruction and its checksum
-                This parameter should have a length of at least 4, much like all UART
-                instructions.
+    :param message: A list of bytes representing the entire instruction and its checksum
+                    This parameter should have a length of at least 4, much like all UART
+                    instructions.
 
-:returns: True if calculated checksum == checksum in list, False otherwise
-"""
-    if len(list) < 4:
+    :returns: True if calculated checksum == checksum in list, False otherwise
+    """
+    if len(message) < 4:
         return False
 
-    checksum_bytes = message[(len(message) - 2):(len(message)]
+    checksum_bytes = message[(len(message) - 2):(len(message))]
     instruction_bytes = message[0:(len(message) - 2)]
 
     return fl16_get_check_bytes(fletcher16_nums(instruction_bytes)) == checksum_bytes
