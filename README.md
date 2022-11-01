@@ -33,6 +33,21 @@ In this project, the MSP432 and Raspberry Pi communicate with each other via UAR
   - Upper 4 bits reserved for the instruction ID
   - Lower 4 bits reserved for the operand length
 - n bytes containing the operand (if applicable), where n equals the operand length defined in the previous byte (0 <= n <= 5)
-- 2 bytes containing the [Fletcher-16](https://en.wikipedia.org/wiki/Fletcher's_checksum#Implementation) checksum bytes.
+- 2 bytes containing the [Fletcher-16](https://en.wikipedia.org/wiki/Fletcher's_checksum#Implementation) check bytes.
+
+The start byte is used to identify the start of a UART message. The instruction ID bits define which instruction is being sent, which tells the MSP432 or Raspberry Pi what to do. The operand length bits define how many bytes long the following operand is. The operand, when present, is used by the instruction to perform its task. Finally, the check bytes (calculated from the [Fletcher-16 checksum](https://en.wikipedia.org/wiki/Fletcher's_checksum#Implementation)) are used to verify data integrity between the sender and receiver. 
+
+The entire instruction set is summarized below: 
+| Instruction Name 	| Instruction      	| Description                                  	|
+|------------------	|------------------	|----------------------------------------------	|
+| RESET            	| 0x0A00           	| Resets software                              	|
+| START_W          	| 0x0A10           	| Human starts                                 	|
+| START_B          	| 0x0A20           	| Robot starts                                 	|
+| HUMAN_MOVE       	| 0x0A35XXXXXXXXXX 	| Human makes move represented by "XXXXXXXXXX" 	|
+| ROBOT_MOVE       	| 0x0A45XXXXXXXXXX 	| Robot makes move represented by "XXXXXXXXXX" 	|
+| GAME_ONGOING     	| 0x0A5101         	| Game continues                               	|
+| GAME_CHECKMATE   	| 0x0A5102         	| Game ended to checkmate                      	|
+| GAME_STALEMATE   	| 0x0A5103         	| Game ended to stalemate                      	|
+| ILLEGAL_MOVE     	| 0x0A60           	| Illegal move made                            	|
 
 <!-- Any repo-specific setup, etc. -->
