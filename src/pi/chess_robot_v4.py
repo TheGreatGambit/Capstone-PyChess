@@ -12,7 +12,7 @@ import serial
 
 __author__ = "Keenan Alchaar"
 __copyright__ = "Copyright 2022"
-__version__ = "v3"
+__version__ = "v4"
 __email__ = "ka5nt@virginia.edu"
 __status__ = "Development"
 
@@ -75,7 +75,12 @@ def main():
         parity=serial.PARITY_NONE, 
         stopbits=serial.STOPBITS_ONE, 
         bytesize=serial.EIGHTBITS,
+        timeout = 3,
     )
+
+    if not ser.is_open:
+        ser.open()
+    print("Opened /dev/serial0")
     
     # Flush both UART buffers
     ser.reset_input_buffer()
@@ -83,24 +88,65 @@ def main():
 
     # The main program loop
     while True:
-        byte = bytes_to_int(ser.read(1))
+        byte = ser.read(1)
+
+        if len(byte) == 0:
+            print("No start byte received")
+            continue
+        else:
+            byte = bytes_to_int(byte)
+
         raw_operand = b""
         int_operand = -1
         dec_operand = ""
+        received_msg = []
+
         if byte == START_BYTE:
             instr_and_op_len = bytes_to_int(ser.read(1))
+
+            if len(instr_and_op_len) == 0:
+                print("Didn't receive an instruction + operand length byte")
+                continue
+
             instr = instr_and_op_len >> 4
             op_len = instr_and_op_len & (~0xF0)
+            # DEBUGGING
             print(f"Raw instr and op len: {hex(instr_and_op_len)}")
             print(f"Raw instruction: {hex(instr)}")
             print(f"Raw operand len: {hex(op_len)}")
+            received_msg = [byte, instr_and_op_len]
             if (op_len > 0):
                 raw_operand = ser.read(op_len)
                 int_operand = bytes_to_int(raw_operand)
                 dec_operand = raw_operand.decode('ascii')
                 print(f"Raw operand: {int_operand}")
                 print(f"Dec operand: {dec_operand}")
-            checksum = bytes_to_int(ser.read(1))
+            c0 = bytes_to_int(ser.read(1))
+            c1 = bytes_to_int(ser.read(1))
+
+            # The only operand lengths present in this instruction set are 0, 1, and 5
+            if (op_len not in [0, 1, 5]):
+                print("Invalid operand length received")
+                ser.reset_input_buffer()
+                continue
+            if (instr > 6):
+                print("Invalid instruction ID received")
+                ser.reset_input_buffer()
+                continue
+            
+            # Only append operand bytes to received_msg if there are any
+            if (op_len > 0):
+                received_msg = [byte, instr_and_op_len] + [ord(c) for c in dec_operand] + [c0, c1]
+            else:
+                received_msg = [byte, instr_and_op_len] + [c0, c1]
+
+            # Validate the check bytes and skip action if invalid
+            if not validate_transmission(received_msg):
+                print("Invalid transmission received")
+                ser.reset_input_buffer()
+                continue
+            
+            # Take action based on the instruction ID
             if instr == RESET_INSTR:
                 # TODO: actually do some resetting
                 print("Resetting system")
@@ -270,7 +316,7 @@ def validate_transmission(message: list) -> bool:
     Validates error-free transmission by checking the non-checksum bytes against the
     checksum (last two in the "message" argument) bytes. 
 
-    :param message: A list of bytes representing the entire instruction and its checksum
+    :param message: A list of bytes representing the entire instruction AND its check bytes.
                     This parameter should have a length of at least 4, much like all UART
                     instructions.
 
