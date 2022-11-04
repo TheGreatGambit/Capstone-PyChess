@@ -63,11 +63,12 @@ def bytes_to_int(byte_stream):
     return int(byte_stream.hex(), 16)
 
 def main():
+    # Initialize the chess engine, give it a hash size of 64 MB, and create a new board
     engine = chess.engine.SimpleEngine.popen_uci("/home/thegreatgambit/Documents/Capstone-PyChess/stockfish/src/stockfish")
     engine.configure({"Hash": 64})
     board = chess.Board()
 
-    # Initialize UART
+    # Initialize UART with a baud rate of 9600, no parity bit, one stop bit, eight data bits, and a 3s timeout
     global ser
     ser = serial.Serial(
         port="/dev/serial0", 
@@ -92,6 +93,7 @@ def main():
 
         if len(byte) == 0:
             print("No start byte received")
+            ser.reset_input_buffer()
             continue
         else:
             byte = bytes_to_int(byte)
@@ -102,12 +104,14 @@ def main():
         received_msg = []
 
         if byte == START_BYTE:
-            instr_and_op_len = bytes_to_int(ser.read(1))
+            instr_and_op_len = ser.read(1)
 
             if len(instr_and_op_len) == 0:
                 print("Didn't receive an instruction + operand length byte")
+                ser.reset_input_buffer()
                 continue
 
+            instr_and_op_len = bytes_to_int(instr_and_op_len)
             instr = instr_and_op_len >> 4
             op_len = instr_and_op_len & (~0xF0)
             # DEBUGGING
@@ -117,12 +121,25 @@ def main():
             received_msg = [byte, instr_and_op_len]
             if (op_len > 0):
                 raw_operand = ser.read(op_len)
+
+                if len(raw_operand) < op_len:
+                    print("Received shorter operand than expected")
+                    ser.reset_input_buffer()
+                    continue
+
                 int_operand = bytes_to_int(raw_operand)
                 dec_operand = raw_operand.decode('ascii')
                 print(f"Raw operand: {int_operand}")
                 print(f"Dec operand: {dec_operand}")
-            c0 = bytes_to_int(ser.read(1))
-            c1 = bytes_to_int(ser.read(1))
+            check_bytes = ser.read(2)
+
+            if len(check_bytes) < 2:
+                print("Didn't receive two check bytes")
+                ser.reset_input_buffer()
+                continue
+
+            c0 = bytes_to_int(check_bytes[0])
+            c1 = bytes_to_int(check_bytes[1])
 
             # The only operand lengths present in this instruction set are 0, 1, and 5
             if (op_len not in [0, 1, 5]):
@@ -157,6 +174,26 @@ def main():
             elif instr == START_B_INSTR:
                 print("Human playing black; robot to start")
                 player_color = "B"
+
+                # Get Stockfish's move in 1 second
+                stockfish_next_move = engine.play(board, chess.engine.Limit(time=1)).move
+                # Convert the Move object to a UCI string
+                stockfish_next_move_uci = stockfish_next_move.uci()
+                # If it's a promotion, it will be overriden to a queen automatically
+                if len(stockfish_next_move_uci) == 5:
+                    stockfish_next_move_uci = stockfish_next_move_uci[0:4]
+                
+                # Get the fifth operand byte to be sent
+                fifth_byte = get_fifth_byte(board, stockfish_next_move)
+                # Package the bytes (ord(c) converts characters to ASCII encodings)
+                robot_move_instr_bytes = [START_BYTE, ROBOT_MOVE_INSTR_AND_LEN] + [ord(c) for c in stockfish_next_move_uci] + [ord(fifth_byte)]
+                # Append the checksum to the bytes preceding it
+                robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
+                # Send the ROBOT_MOVE_INSTR to the MSP
+                ser.write(bytearray(robot_move_instr_bytes))
+                # Update the board with the robot's move
+                chess_board.push(chess.Move.from_uci(stockfish_next_move_uci))
+
             elif instr == HUMAN_MOVE_INSTR:
                 # Remove the '_' from the move, or leave any promotions
                 player_next_move = chess.Move.from_uci(parse_move(dec_operand))
