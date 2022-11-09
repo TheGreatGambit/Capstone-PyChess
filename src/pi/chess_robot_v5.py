@@ -118,9 +118,9 @@ def main():
             instr = instr_and_op_len >> 4
             op_len = instr_and_op_len & (~0xF0)
             # DEBUGGING
-            print(f"Raw instr and op len: {hex(instr_and_op_len)}")
-            print(f"Raw instruction: {hex(instr)}")
-            print(f"Raw operand len: {hex(op_len)}")
+            #print(f"Raw instr and op len: {hex(instr_and_op_len)}")
+            #print(f"Raw instruction: {hex(instr)}")
+            #print(f"Raw operand len: {hex(op_len)}")
             received_msg = [byte, instr_and_op_len]
             if (op_len > 0):
                 raw_operand = ser.read(op_len)
@@ -205,15 +205,17 @@ def main():
                     print(f"Human makes move: {parse_move(dec_operand)}")
                     player_next_move = chess.Move.from_uci(parse_move(dec_operand))
                 except (ValueError, TypeError) as e:
-                    illegal_move_instr_bytes = bytearray([START_BYTE, ILLEGAL_MOVE_INSTR_AND_LEN])
-                    ser.write(illegal_move_instr_bytes)
+                    illegal_move_instr_bytes = [START_BYTE, ILLEGAL_MOVE_INSTR_AND_LEN]
+                    illegal_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(illegal_move_instr_bytes))
+                    ser.write(bytearray(illegal_move_instr_bytes))
                     print("Illegal move made")
                     continue
 
                 # If the move the player made was not legal, do not push it; alert the MSP
                 if player_next_move not in board.legal_moves:
-                    illegal_move_instr_bytes = bytearray([START_BYTE, ILLEGAL_MOVE_INSTR_AND_LEN])
-                    ser.write(illegal_move_instr_bytes) # ILLEGAL_MOVE
+                    illegal_move_instr_bytes = [START_BYTE, ILLEGAL_MOVE_INSTR_AND_LEN]
+                    illegal_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(illegal_move_instr_bytes))
+                    ser.write(bytearray(illegal_move_instr_bytes)) # ILLEGAL_MOVE
                     print("Illegal move made")
                     continue
                 else:
