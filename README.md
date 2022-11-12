@@ -33,7 +33,7 @@ In this project, the MSP432 and Raspberry Pi communicate with each other via UAR
 - 1 byte containing the instruction ID and operand length
   - Upper 4 bits reserved for the instruction ID
   - Lower 4 bits reserved for the operand length
-- n bytes containing the operand (if applicable), where n equals the operand length defined in the previous byte (0 <= n <= 5)
+- n bytes containing the operand (if applicable), where n equals the operand length defined in the previous byte (n = 0, 5, 6)
 - 2 bytes containing the [Fletcher-16](https://en.wikipedia.org/wiki/Fletcher's_checksum#Implementation) check bytes.
 
 The start byte is used to identify the start of a UART message. The instruction ID bits define which instruction is being sent, which tells the MSP432 or Raspberry Pi what to do. The operand length bits define how many bytes long the following operand is. The operand, when present, is used by the instruction to perform its task. Finally, the check bytes (calculated from the [Fletcher-16 checksum](https://en.wikipedia.org/wiki/Fletcher's_checksum#Implementation)) are used to verify data integrity between the sender and receiver. 
