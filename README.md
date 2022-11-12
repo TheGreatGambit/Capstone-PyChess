@@ -46,7 +46,7 @@ The entire instruction set is summarized below:
 | START_W          	| 0x0A10           	| Human starts                                 	|
 | START_B          	| 0x0A20           	| Robot starts                                 	|
 | HUMAN_MOVE       	| 0x0A35XXXXXXXXXX 	| Human makes move represented by "XXXXXXXXXX" 	|
-| ROBOT_MOVE       	| 0x0A46XXXXXXXXXXYY 	| Robot makes move represented by "XXXXXXXXXX; additionally, includes game status data after the human's last move and robot's move given in the instruction 	|
+| ROBOT_MOVE       	| 0x0A46XXXXXXXXXXYY 	| Robot makes move represented by "XXXXXXXXXX"; additionally, includes game status data in "YY" after the human's last move and robot's move given in the instruction 	|
 | ILLEGAL_MOVE     	| 0x0A50           	| Illegal move made                            	|
 
 ### Checksums
