@@ -166,13 +166,17 @@ def main():
 
             # Take action based on the instruction ID
             if instr == RESET_INSTR:
-                # TODO: actually do some resetting
+                # Reset the board
+                board = chess.Board()
                 print("Resetting system")
             elif instr == START_W_INSTR:
-                # TODO: Any other setup needed? 
+                # Create a new board; human starts (wait for them to send a move)
+                board = chess.Board()
                 print("Human playing white; human to start")
                 player_color = "W"
             elif instr == START_B_INSTR:
+                # Create a new board; robot starts
+                board = chess.Board()
                 print("Human playing black; robot to start")
                 player_color = "B"
 
@@ -227,11 +231,17 @@ def main():
                     # Print the new board
                     print(board)
                     # Check the game state after the player's move has been recognized
-                    status_after_player = check_game_state(board) << 4
+                    status_after_player = check_game_state(board)
 
+                    # If the player's last move ended the game
                     if status_after_player != GAME_ONGOING:
-                        game_status_byte = status_after_player + GAME_ONGOING
+                        # The game status byte will include the status the player caused, and a "filler" GAME_ONGOING for the robot
+                        game_status_byte = (status_after_player << 4) + GAME_ONGOING
+                        # Package the bytes, fill the move bytes with filler values (they don't matter since the game is over)
                         robot_move_instr_bytes = [START_BYTE, ROBOT_MOVE_INSTR_AND_LEN] + ['_', '_', '_', '_', '_', game_status_byte]
+                        # Append the check bytes to the bytes preceding them
+                        robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
+                        # Send ROBOT_MOVE_INSTR to the MSP; the player has ended the game at this point
                         ser.write(bytearray(robot_move_instr_bytes))
                         print(f"Game over!")
                     else:
@@ -252,14 +262,17 @@ def main():
                         # Check the game state after the robot has decided its move
                         status_after_robot = check_game_state(board)
                         # Form the game status byte with the statuses after human and robot moves
-                        game_status_byte = status_after_player + status_after_robot
+                        game_status_byte = (status_after_player << 4) + status_after_robot
                         # Package the bytes (ord(c) converts characters to ASCII encodings)
                         robot_move_instr_bytes = [START_BYTE, ROBOT_MOVE_INSTR_AND_LEN] + [ord(c) for c in stockfish_next_move_uci] + [ord(fifth_byte), game_status_byte]
-                        # Append the checksum to the bytes preceding it
+                        # Append the check bytes to the bytes preceding them
                         robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                         # Send the ROBOT_MOVE_INSTR to the MSP
                         ser.write(bytearray(robot_move_instr_bytes))
                         print(f"Sent move {stockfish_next_move_uci}")
+                        # If the robot's last move ended the game
+                        if status_after_robot != GAME_ONGOING:
+                            print("Game over!")
 
             else:
                 print("Did not get a valid instruction")
