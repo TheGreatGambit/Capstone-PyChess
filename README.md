@@ -46,11 +46,8 @@ The entire instruction set is summarized below:
 | START_W          	| 0x0A10           	| Human starts                                 	|
 | START_B          	| 0x0A20           	| Robot starts                                 	|
 | HUMAN_MOVE       	| 0x0A35XXXXXXXXXX 	| Human makes move represented by "XXXXXXXXXX" 	|
-| ROBOT_MOVE       	| 0x0A45XXXXXXXXXX 	| Robot makes move represented by "XXXXXXXXXX" 	|
-| GAME_ONGOING     	| 0x0A5101         	| Game continues                               	|
-| GAME_CHECKMATE   	| 0x0A5102         	| Game ended to checkmate                      	|
-| GAME_STALEMATE   	| 0x0A5103         	| Game ended to stalemate                      	|
-| ILLEGAL_MOVE     	| 0x0A60           	| Illegal move made                            	|
+| ROBOT_MOVE       	| 0x0A46XXXXXXXXXXYY 	| Robot makes move represented by "XXXXXXXXXX; additionally, includes game status data after the human's last move and robot's move given in the instruction 	|
+| ILLEGAL_MOVE     	| 0x0A50           	| Illegal move made                            	|
 
 ### Checksums
 To ensure data integrity across transmission, this protocol reserves the last two bytes of any UART message for checksum bytes, the calculation for which can be found [here](https://en.wikipedia.org/wiki/Fletcher's_checksum#Implementation). Before any message is sent (whether from the MSP432 or the Pi), the Fletcher-16 checksum is generated. Then, this checksum is turned into two bytes which can be appended to the end of the transmission. When the receiver receives the message, they will calculate the Fletcher-16 checksum and check bytes for the message, *not including* the final two checksum bytes. If the final two check bytes sent equal the check bytes that were manually calculated by the receiver, then the data integrity has been verified, and the receiver can continue on with the instruction. Otherwise, the data has likely been corrupted, and the sender will have to re-send the previous message. 
