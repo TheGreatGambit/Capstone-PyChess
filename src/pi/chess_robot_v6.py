@@ -9,6 +9,7 @@ uses python-serial to enable straightforward UART communication with the MSP.
 import chess
 import chess.engine
 import serial
+import sys
 
 __author__ = "Keenan Alchaar"
 __copyright__ = "Copyright 2022"
@@ -61,7 +62,21 @@ def main():
     # Initialize the chess engine, give it a hash size of 64 MB, and create a new board
     engine = chess.engine.SimpleEngine.popen_uci("/home/thegreatgambit/Documents/Capstone-PyChess/stockfish/src/stockfish")
     engine.configure({"Hash": 64})
-    board = chess.Board()
+    
+    # Accepts one command line argument for the starting FEN
+    if len(sys.argv) > 1:
+        try:
+            board = chess.Board(fen=sys.argv[1])
+            print(f"Loaded board with FEN: {sys.argv[1]}")
+            print(board)
+        except ValueError:
+            sys.exit("Received an invalid FEN string; exiting...")
+    elif len(sys.argv) > 2:
+        sys.exit("Too many arguments provided; exiting...")
+    else:
+        board = chess.Board()
+        print("Using default FEN")
+        print(board)
 
     # Initialize UART with a baud rate of 9600, no parity bit, one stop bit, eight data bits, and a 3s timeout
     global ser
@@ -81,9 +96,6 @@ def main():
     # Flush both UART buffers
     ser.reset_input_buffer()
     ser.reset_output_buffer()
-
-    # Starting board print
-    print(board)
 
     # The main program loop
     while True:
