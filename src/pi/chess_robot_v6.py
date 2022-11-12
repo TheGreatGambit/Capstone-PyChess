@@ -183,12 +183,12 @@ def main():
                 print("Resetting system")
             elif instr == START_W_INSTR:
                 # Create a new board; human starts (wait for them to send a move)
-                board = chess.Board()
+                # board = chess.Board()
                 print("Human playing white; human to start")
                 player_color = "W"
             elif instr == START_B_INSTR:
                 # Create a new board; robot starts
-                board = chess.Board()
+                # board = chess.Board()
                 print("Human playing black; robot to start")
                 player_color = "B"
 
@@ -250,7 +250,7 @@ def main():
                         # The game status byte will include the status the player caused, and a "filler" GAME_ONGOING for the robot
                         game_status_byte = (status_after_player << 4) + GAME_ONGOING
                         # Package the bytes, fill the move bytes with filler values (they don't matter since the game is over)
-                        robot_move_instr_bytes = [START_BYTE, ROBOT_MOVE_INSTR_AND_LEN] + ['_', '_', '_', '_', '_', game_status_byte]
+                        robot_move_instr_bytes = [START_BYTE, ROBOT_MOVE_INSTR_AND_LEN] + [ord('_')]*5 + [game_status_byte]
                         # Append the check bytes to the bytes preceding them
                         robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                         # Send ROBOT_MOVE_INSTR to the MSP; the player has ended the game at this point
