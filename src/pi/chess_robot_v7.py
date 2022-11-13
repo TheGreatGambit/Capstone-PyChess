@@ -13,7 +13,7 @@ import sys
 
 __author__ = "Keenan Alchaar"
 __copyright__ = "Copyright 2022"
-__version__ = "v6"
+__version__ = "v7"
 __email__ = "ka5nt@virginia.edu"
 __status__ = "Development"
 
@@ -418,6 +418,16 @@ def validate_transmission(message: list) -> bool:
     instruction_bytes = message[0:(len(message) - 2)]
 
     return fl16_get_check_bytes(fletcher16_nums(instruction_bytes)) == checksum_bytes
+
+
+def check_for_ack(sent_message: list):
+    ack = ser.read(1)
+    if len(ack) == 0:
+        print("Didn't receive an ack. Resending...")
+        
+    if bytes_to_int(ack) == 0x0F:
+        print("Received ack")
+
 
 if __name__ == "__main__":
     main()
