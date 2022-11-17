@@ -234,7 +234,7 @@ def main():
                     ser.write(bytearray(illegal_move_instr_bytes))
                     print("Illegal move made")
                     # Check for ACK sendback
-                    while not check_for_ack(robot_move_instr_bytes):
+                    while not check_for_ack(illegal_move_instr_bytes):
                         pass
 
                     continue
@@ -246,7 +246,7 @@ def main():
                     ser.write(bytearray(illegal_move_instr_bytes)) # ILLEGAL_MOVE
                     print("Illegal move made")
                     # Check for ACK sendback
-                    while not check_for_ack(robot_move_instr_bytes):
+                    while not check_for_ack(illegal_move_instr_bytes):
                         pass
 
                     continue
