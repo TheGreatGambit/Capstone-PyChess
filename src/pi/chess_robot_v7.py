@@ -19,6 +19,7 @@ __status__ = "Development"
 
 # PACKET STRUCTURE DEFINES
 START_BYTE           =   0x0A             # Start byte at beginning of every instruction
+ACK_BYTE             =   0x0F             # ACK signal
 
 # INSTRUCTION DEFINES
 RESET_INSTR          =   0x00
@@ -86,7 +87,7 @@ def main():
         parity=serial.PARITY_NONE, 
         stopbits=serial.STOPBITS_ONE, 
         bytesize=serial.EIGHTBITS,
-#        timeout = 60,
+        timeout = 5,
     )
 
     if not ser.is_open:
@@ -102,7 +103,7 @@ def main():
         byte = ser.read(1)
 
         if len(byte) == 0:
-            print("No start byte received")
+            print("Waiting for a start byte...")
             ser.reset_input_buffer()
             continue
         else:
@@ -140,7 +141,7 @@ def main():
 
                 int_operand = bytes_to_int(raw_operand)
                 dec_operand = raw_operand.decode('ascii')
-                print(f"Raw operand: {int_operand}")
+                #print(f"Raw operand: {int_operand}")
                 print(f"Dec operand: {dec_operand}")
 
             check_bytes = ser.read(2)
@@ -218,6 +219,9 @@ def main():
                 # Send the ROBOT_MOVE_INSTR to the MSP
                 ser.write(bytearray(robot_move_instr_bytes))
                 print(f"Sent move {stockfish_next_move_uci}")
+                # Check for ACK sendback
+                while not check_for_ack(robot_move_instr_bytes):
+                    pass
 
             elif instr == HUMAN_MOVE_INSTR:
                 # Remove the '_' from the move, or leave any promotions
@@ -229,6 +233,10 @@ def main():
                     illegal_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(illegal_move_instr_bytes))
                     ser.write(bytearray(illegal_move_instr_bytes))
                     print("Illegal move made")
+                    # Check for ACK sendback
+                    while not check_for_ack(robot_move_instr_bytes):
+                        pass
+
                     continue
 
                 # If the move the player made was not legal, do not push it; alert the MSP
@@ -237,6 +245,10 @@ def main():
                     illegal_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(illegal_move_instr_bytes))
                     ser.write(bytearray(illegal_move_instr_bytes)) # ILLEGAL_MOVE
                     print("Illegal move made")
+                    # Check for ACK sendback
+                    while not check_for_ack(robot_move_instr_bytes):
+                        pass
+
                     continue
                 else:
                     # Update the board with the player's move
@@ -257,6 +269,9 @@ def main():
                         # Send ROBOT_MOVE_INSTR to the MSP; the player has ended the game at this point
                         ser.write(bytearray(robot_move_instr_bytes))
                         print(f"Game over!")
+                        # Check for ACK sendback
+                        while not check_for_ack(robot_move_instr_bytes):
+                            pass
                     else:
                         # Get Stockfish's move in 1 second
                         stockfish_next_move = engine.play(board, chess.engine.Limit(time=1)).move
@@ -286,6 +301,9 @@ def main():
                         # If the robot's last move ended the game
                         if status_after_robot != GAME_ONGOING:
                             print("Game over!")
+                        # Check for ACK sendback
+                        while not check_for_ack(robot_move_instr_bytes):
+                            pass
 
             else:
                 print("Did not get a valid instruction")
@@ -420,13 +438,20 @@ def validate_transmission(message: list) -> bool:
     return fl16_get_check_bytes(fletcher16_nums(instruction_bytes)) == checksum_bytes
 
 
-def check_for_ack(sent_message: list):
+def check_for_ack(sent_message: list) -> bool:
     ack = ser.read(1)
     if len(ack) == 0:
         print("Didn't receive an ack. Resending...")
+        ser.write(sent_message)
+        return False
         
-    if bytes_to_int(ack) == 0x0F:
+    if bytes_to_int(ack) == ACK_BYTE:
         print("Received ack")
+        return True
+    else:
+        print("Bad ack received. Resending...")
+        ser.write(sent_message)
+        return False
 
 
 if __name__ == "__main__":
