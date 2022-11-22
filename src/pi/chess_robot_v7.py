@@ -177,6 +177,7 @@ def main():
                 continue
             else:
                 print("Valid transmission received!")
+                ser.write(bytes(ACK_BYTE))
 
             # Take action based on the instruction ID
             if instr == RESET_INSTR:
