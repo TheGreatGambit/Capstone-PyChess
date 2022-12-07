@@ -62,9 +62,9 @@ def bytes_to_int(byte_stream):
 
 def main():
     # Datetime header
-    print("----------------------------------------------------")
+    print("----------------------------------------------------", flush=True)
     print(f"chess_robot_v7.py run at: {datetime.datetime.now()}", flush=True)
-    print("----------------------------------------------------")
+    print("----------------------------------------------------", flush=True)
 
     # Initialize the chess engine, give it a hash size of 64 MB, and create a new board
     engine = chess.engine.SimpleEngine.popen_uci("/home/thegreatgambit/Documents/Capstone-PyChess/stockfish/src/stockfish")
@@ -145,7 +145,7 @@ def main():
                 raw_operand = ser.read(op_len)
 
                 if len(raw_operand) < op_len:
-                    print("Received shorter operand than expected", flush=True)
+                    print(f"Received shorter operand than expected: received {received_msg} with op_len {op_len}, but received len was {len(raw_operand)}", flush=True)
                     ser.reset_input_buffer()
                     continue
 
@@ -166,11 +166,11 @@ def main():
 
             # The only operand lengths present in this instruction set are 0, 1, and 5
             if (op_len not in [0, 1, 5]):
-                print("Invalid operand length received", flush=True)
+                print("Invalid operand length received; got {op_len}", flush=True)
                 ser.reset_input_buffer()
                 continue
             if (instr > 6):
-                print("Invalid instruction ID received", flush=True)
+                print("Invalid instruction ID received; got {instr}", flush=True)
                 ser.reset_input_buffer()
                 continue
             
@@ -182,12 +182,12 @@ def main():
 
             # Validate the check bytes and skip action if invalid
             if not validate_transmission(received_msg):
-                print(f"Invalid transmission received: {received_msg}", flush=True)
+                print(f"Invalid transmission received: Dec: {received_msg} | Hex: {[hex(c) for c in received_msg]}", flush=True)
                 ser.reset_input_buffer()
                 continue
             else:
-                print(f"Valid transmission received!: {received_msg}", flush=True)
-                ser.write(bytes(ACK_BYTE))
+                print(f"Valid transmission received, ACK sent!: Dec: {received_msg} | Hex: {[hex(c) for c in received_msg]}", flush=True)
+                ser.write(bytearray([ACK_BYTE]))
 
             # Take action based on the instruction ID
             if instr == RESET_INSTR:
@@ -196,12 +196,12 @@ def main():
                 print("Resetting system", flush=True)
             elif instr == START_W_INSTR:
                 # Create a new board; human starts (wait for them to send a move)
-                # board = chess.Board()
+                board = chess.Board()
                 print("Human playing white; human to start", flush=True)
                 player_color = "W"
             elif instr == START_B_INSTR:
                 # Create a new board; robot starts
-                # board = chess.Board()
+                board = chess.Board()
                 print("Human playing black; robot to start", flush=True)
                 player_color = "B"
 
@@ -318,8 +318,9 @@ def main():
 
             else:
                 print("Did not get a valid instruction", flush=True)
-            print("--------------------", flush=True)
+            print("----------------------------------------------", flush=True)
         else:
+            print("Not a start byte")
             continue
 
     return 0
@@ -460,7 +461,7 @@ def check_for_ack(sent_message: list) -> bool:
         print("Received ack", flush=True)
         return True
     else:
-        print("Bad ack received. Resending...", flush=True)
+        print(f"Bad ack received. Resending... (received {ack})", flush=True)
         ser.write(sent_message)
         return False
 
