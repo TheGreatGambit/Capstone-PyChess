@@ -10,6 +10,7 @@ import chess
 import chess.engine
 import serial
 import sys
+import datetime
 
 __author__ = "Keenan Alchaar"
 __copyright__ = "Copyright 2022"
@@ -60,6 +61,11 @@ def bytes_to_int(byte_stream):
     return int(byte_stream.hex(), 16)
 
 def main():
+    # Datetime header
+    print("----------------------------------------------------")
+    print(f"chess_robot_v7.py run at: {datetime.datetime.now()}", flush=True)
+    print("----------------------------------------------------")
+
     # Initialize the chess engine, give it a hash size of 64 MB, and create a new board
     engine = chess.engine.SimpleEngine.popen_uci("/home/thegreatgambit/Documents/Capstone-PyChess/stockfish/src/stockfish")
     engine.configure({"Hash": 64})
@@ -68,18 +74,18 @@ def main():
     if len(sys.argv) > 1:
         try:
             board = chess.Board(fen=sys.argv[1])
-            print(f"Loaded board with FEN: {sys.argv[1]}")
+            print(f"Loaded board with FEN: {sys.argv[1]}", flush=True)
             print(board)
         except ValueError:
-            sys.exit("Received an invalid FEN string; exiting...")
+            sys.exit("Received an invalid FEN string; exiting...", flush=True)
     elif len(sys.argv) > 2:
-        sys.exit("Too many arguments provided; exiting...")
+        sys.exit("Too many arguments provided; exiting...", flush=True)
     else:
         board = chess.Board()
-        print("Using default FEN")
-        print(board)
+        print("Using default FEN", flush=True)
+        print(board, flush=True)
 
-    # Initialize UART with a baud rate of 9600, no parity bit, one stop bit, eight data bits, and a 3s timeout
+    # Initialize UART with a baud rate of 9600, no parity bit, one stop bit, eight data bits, and a 5s timeout
     global ser
     ser = serial.Serial(
         port="/dev/serial0", 
@@ -90,9 +96,12 @@ def main():
         timeout = 5,
     )
 
+    # If the serial port is currently closed, open it
     if not ser.is_open:
         ser.open()
-    print("Opened /dev/serial0")
+        print("/dev/serial0 was just opened", flush=True)
+    else:
+        print("/dev/serial0 is already open", flush=True)
     
     # Flush both UART buffers
     ser.reset_input_buffer()
@@ -100,10 +109,11 @@ def main():
 
     # The main program loop
     while True:
+        # Read the first byte
         byte = ser.read(1)
 
         if len(byte) == 0:
-            print("Waiting for a start byte...")
+            print("Waiting for a start byte...", flush=True)
             ser.reset_input_buffer()
             continue
         else:
@@ -113,54 +123,54 @@ def main():
         int_operand = -1
         dec_operand = ""
         received_msg = []
-        last_msg_sent = []
 
+        # Check for the start byte (0x0A)
         if byte == START_BYTE:
             instr_and_op_len = ser.read(1)
 
             if len(instr_and_op_len) == 0:
-                print("Didn't receive an instruction + operand length byte")
+                print("Didn't receive an instruction + operand length byte", flush=True)
                 ser.reset_input_buffer()
                 continue
 
+            # Convert bytes to ints, then use bit operations to extract the
+            # individual instruction and operand length
             instr_and_op_len = bytes_to_int(instr_and_op_len)
             instr = instr_and_op_len >> 4
             op_len = instr_and_op_len & (~0xF0)
-            # DEBUGGING
-            #print(f"Raw instr and op len: {hex(instr_and_op_len)}")
-            #print(f"Raw instruction: {hex(instr)}")
-            #print(f"Raw operand len: {hex(op_len)}")
             received_msg = [byte, instr_and_op_len]
+
             if (op_len > 0):
+                # Read the number of bytes given by op_len
                 raw_operand = ser.read(op_len)
 
                 if len(raw_operand) < op_len:
-                    print("Received shorter operand than expected")
+                    print("Received shorter operand than expected", flush=True)
                     ser.reset_input_buffer()
                     continue
 
                 int_operand = bytes_to_int(raw_operand)
                 dec_operand = raw_operand.decode('ascii')
-                #print(f"Raw operand: {int_operand}")
-                print(f"Dec operand: {dec_operand}")
+                print(f"Dec operand: {dec_operand}", flush=True)
 
             check_bytes = ser.read(2)
 
             if len(check_bytes) < 2:
-                print("Didn't receive two check bytes")
+                print("Didn't receive two check bytes", flush=True)
                 ser.reset_input_buffer()
                 continue
 
+            # Convert the check bytes to integers
             c0 = bytes_to_int(check_bytes[0:1])
             c1 = bytes_to_int(check_bytes[1:2])
 
             # The only operand lengths present in this instruction set are 0, 1, and 5
             if (op_len not in [0, 1, 5]):
-                print("Invalid operand length received")
+                print("Invalid operand length received", flush=True)
                 ser.reset_input_buffer()
                 continue
             if (instr > 6):
-                print("Invalid instruction ID received")
+                print("Invalid instruction ID received", flush=True)
                 ser.reset_input_buffer()
                 continue
             
@@ -172,27 +182,27 @@ def main():
 
             # Validate the check bytes and skip action if invalid
             if not validate_transmission(received_msg):
-                print("Invalid transmission received")
+                print(f"Invalid transmission received: {received_msg}", flush=True)
                 ser.reset_input_buffer()
                 continue
             else:
-                print("Valid transmission received!")
+                print(f"Valid transmission received!: {received_msg}", flush=True)
                 ser.write(bytes(ACK_BYTE))
 
             # Take action based on the instruction ID
             if instr == RESET_INSTR:
                 # Reset the board
                 board = chess.Board()
-                print("Resetting system")
+                print("Resetting system", flush=True)
             elif instr == START_W_INSTR:
                 # Create a new board; human starts (wait for them to send a move)
                 # board = chess.Board()
-                print("Human playing white; human to start")
+                print("Human playing white; human to start", flush=True)
                 player_color = "W"
             elif instr == START_B_INSTR:
                 # Create a new board; robot starts
                 # board = chess.Board()
-                print("Human playing black; robot to start")
+                print("Human playing black; robot to start", flush=True)
                 player_color = "B"
 
                 # Get Stockfish's move in 1 second
@@ -208,7 +218,7 @@ def main():
                 # Update the board with the robot's move
                 board.push(chess.Move.from_uci(stockfish_next_move_uci))
                 # Print the new board
-                print(board)
+                print(board, flush=True)
                 # Check the game state after the robot has decided its move
                 status_after_robot = check_game_state(board)
                 # Form the game status byte with robot's move (player didn't move before, so its 4 bits are forced to GAME_ONGOING)
@@ -219,7 +229,7 @@ def main():
                 robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                 # Send the ROBOT_MOVE_INSTR to the MSP
                 ser.write(bytearray(robot_move_instr_bytes))
-                print(f"Sent move {stockfish_next_move_uci}")
+                print(f"Sent move {stockfish_next_move_uci}", flush=True)
                 # Check for ACK sendback
                 while not check_for_ack(robot_move_instr_bytes):
                     pass
@@ -227,13 +237,13 @@ def main():
             elif instr == HUMAN_MOVE_INSTR:
                 # Remove the '_' from the move, or leave any promotions
                 try:
-                    print(f"Human makes move: {parse_move(dec_operand)}")
+                    print(f"Human makes move: {parse_move(dec_operand)}", flush=True)
                     player_next_move = chess.Move.from_uci(parse_move(dec_operand))
                 except (ValueError, TypeError) as e:
                     illegal_move_instr_bytes = [START_BYTE, ILLEGAL_MOVE_INSTR_AND_LEN]
                     illegal_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(illegal_move_instr_bytes))
                     ser.write(bytearray(illegal_move_instr_bytes))
-                    print("Illegal move made")
+                    print("Illegal move made", flush=True)
                     # Check for ACK sendback
                     while not check_for_ack(illegal_move_instr_bytes):
                         pass
@@ -245,7 +255,7 @@ def main():
                     illegal_move_instr_bytes = [START_BYTE, ILLEGAL_MOVE_INSTR_AND_LEN]
                     illegal_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(illegal_move_instr_bytes))
                     ser.write(bytearray(illegal_move_instr_bytes)) # ILLEGAL_MOVE
-                    print("Illegal move made")
+                    print("Illegal move made", flush=True)
                     # Check for ACK sendback
                     while not check_for_ack(illegal_move_instr_bytes):
                         pass
@@ -255,7 +265,7 @@ def main():
                     # Update the board with the player's move
                     board.push(player_next_move)
                     # Print the new board
-                    print(board)
+                    print(board, flush=True)
                     # Check the game state after the player's move has been recognized
                     status_after_player = check_game_state(board)
 
@@ -269,7 +279,7 @@ def main():
                         robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                         # Send ROBOT_MOVE_INSTR to the MSP; the player has ended the game at this point
                         ser.write(bytearray(robot_move_instr_bytes))
-                        print(f"Game over!")
+                        print(f"Game over!", flush=True)
                         # Check for ACK sendback
                         while not check_for_ack(robot_move_instr_bytes):
                             pass
@@ -287,7 +297,7 @@ def main():
                         # Update the board with the robot's move
                         board.push(chess.Move.from_uci(stockfish_next_move_uci))
                         # Print the new board
-                        print(board)
+                        print(board, flush=True)
                         # Check the game state after the robot has decided its move
                         status_after_robot = check_game_state(board)
                         # Form the game status byte with the statuses after human and robot moves
@@ -298,17 +308,17 @@ def main():
                         robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                         # Send the ROBOT_MOVE_INSTR to the MSP
                         ser.write(bytearray(robot_move_instr_bytes))
-                        print(f"Sent move {stockfish_next_move_uci}")
+                        print(f"Sent move {stockfish_next_move_uci}", flush=True)
                         # If the robot's last move ended the game
                         if status_after_robot != GAME_ONGOING:
-                            print("Game over!")
+                            print("Game over!", flush=True)
                         # Check for ACK sendback
                         while not check_for_ack(robot_move_instr_bytes):
                             pass
 
             else:
-                print("Did not get a valid instruction")
-            print("--------------------")
+                print("Did not get a valid instruction", flush=True)
+            print("--------------------", flush=True)
         else:
             continue
 
@@ -325,7 +335,7 @@ def parse_move(move: str) -> str:
     :returns: The move, shortened to 4 characters or kept at 5 (must be a promotion in this case)
     """
     if len(move) != 5:
-        print("DEBUG: Bad move given! Move length should be 5.")
+        print("DEBUG: Bad move given! Move length should be 5.", flush=True)
         return move
     if move[4] == "_":
         return move[0:4]
@@ -442,15 +452,15 @@ def validate_transmission(message: list) -> bool:
 def check_for_ack(sent_message: list) -> bool:
     ack = ser.read(1)
     if len(ack) == 0:
-        print("Didn't receive an ack. Resending...")
+        print("Didn't receive an ack. Resending...", flush=True)
         ser.write(sent_message)
         return False
         
     if bytes_to_int(ack) == ACK_BYTE:
-        print("Received ack")
+        print("Received ack", flush=True)
         return True
     else:
-        print("Bad ack received. Resending...")
+        print("Bad ack received. Resending...", flush=True)
         ser.write(sent_message)
         return False
 
