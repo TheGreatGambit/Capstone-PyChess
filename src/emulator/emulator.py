@@ -1,6 +1,6 @@
 import serial
 
-com_port = 'COM5'  # Change this
+com_port = 'COM16'  # Change this
 START_BYTE = 0x0A
 HUMAN_MOVE_INSTR_AND_LEN = 0x35
 
@@ -16,7 +16,11 @@ def main():
 
                 # Light input checking
                 if len(user_input) == 4:
-                    message = [START_BYTE, HUMAN_MOVE_INSTR_AND_LEN] + [ord(c) for c in user_input] + [ord('_')]
+                    # Check for castling
+                    if user_input == 'e1c1' or user_input == 'e1g1' or user_input == 'e8c8' or user_input == 'e8g8':
+                        message = [START_BYTE, HUMAN_MOVE_INSTR_AND_LEN] + [ord(c) for c in user_input] + [ord('c')]
+                    else:
+                        message = [START_BYTE, HUMAN_MOVE_INSTR_AND_LEN] + [ord(c) for c in user_input] + [ord('_')]
                 elif (len(user_input) == 5) and (user_input[4] == 'Q'):
                     message = [START_BYTE, HUMAN_MOVE_INSTR_AND_LEN] + [ord(c) for c in user_input]
                 else:
