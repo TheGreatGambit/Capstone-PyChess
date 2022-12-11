@@ -51,11 +51,8 @@ HUMAN_MOVE       =       0x0A350000000000 # 5 operand bytes for UCI representati
 ROBOT_MOVE       =       0x0A460000000000 # 5 operand bytes for UCI representation of move (fill in trailing zeroes with move)
 ILLEGAL_MOVE     =       0x0A50           # Declare the human has made an illegal move
 
-IN_PROGRESS = True
-TERMINATED = False
-
-global game_state
-game_state = IN_PROGRESS
+# MOVE TIME
+MOVE_TIME = 2
 
 def bytes_to_int(byte_stream):
     return int(byte_stream.hex(), 16)
@@ -145,7 +142,7 @@ def main():
                 raw_operand = ser.read(op_len)
 
                 if len(raw_operand) < op_len:
-                    print(f"Received shorter operand than expected: received {received_msg} with op_len {op_len}, but received len was {len(raw_operand)}", flush=True)
+                    print(f"Received shorter operand than expected: received {received_msg} with op_len {op_len}, but received len was {len(raw_operand)}: {raw_operand}", flush=True)
                     ser.reset_input_buffer()
                     continue
 
@@ -182,11 +179,11 @@ def main():
 
             # Validate the check bytes and skip action if invalid
             if not validate_transmission(received_msg):
-                print(f"Invalid transmission received: Dec: {received_msg} | Hex: {[hex(c) for c in received_msg]}", flush=True)
+                print(f"Invalid transmission received: \nDec: {received_msg} | Hex: {[hex(c) for c in received_msg]}", flush=True)
                 ser.reset_input_buffer()
                 continue
             else:
-                print(f"Valid transmission received, ACK sent!: Dec: {received_msg} | Hex: {[hex(c) for c in received_msg]}", flush=True)
+                print(f"Valid transmission received, ACK sent!: \nDec: {received_msg} | Hex: {[hex(c) for c in received_msg]}", flush=True)
                 ser.write(bytearray([ACK_BYTE]))
 
             # Take action based on the instruction ID
@@ -206,7 +203,7 @@ def main():
                 player_color = "B"
 
                 # Get Stockfish's move in 1 second
-                stockfish_next_move = engine.play(board, chess.engine.Limit(time=1)).move
+                stockfish_next_move = engine.play(board, chess.engine.Limit(time=MOVE_TIME)).move
                 # Convert the Move object to a UCI string
                 stockfish_next_move_uci = stockfish_next_move.uci()
                 # If it's a promotion, it will be overriden to a queen automatically
@@ -285,7 +282,7 @@ def main():
                             pass
                     else:
                         # Get Stockfish's move in 1 second
-                        stockfish_next_move = engine.play(board, chess.engine.Limit(time=1)).move
+                        stockfish_next_move = engine.play(board, chess.engine.Limit(time=MOVE_TIME)).move
                         # Convert the Move object to a UCI string
                         stockfish_next_move_uci = stockfish_next_move.uci()
                         # If it's a promotion, it will be overriden to a queen automatically
@@ -308,7 +305,7 @@ def main():
                         robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                         # Send the ROBOT_MOVE_INSTR to the MSP
                         ser.write(bytearray(robot_move_instr_bytes))
-                        print(f"Sent move {stockfish_next_move_uci}", flush=True)
+                        print(f"Sent move {stockfish_next_move_uci}; \n{robot_move_instr_bytes}", flush=True)
                         # If the robot's last move ended the game
                         if status_after_robot != GAME_ONGOING:
                             print("Game over!", flush=True)
@@ -338,7 +335,9 @@ def parse_move(move: str) -> str:
     if len(move) != 5:
         print("DEBUG: Bad move given! Move length should be 5.", flush=True)
         return move
-    if move[4] == "_":
+    elif (move[4] == 'Q' or move[4] == 'q'):
+        return move
+    else:
         return move[0:4]
 
 
@@ -386,11 +385,9 @@ def check_game_state(board: chess.Board) -> list:
 
     if board.is_stalemate():
         print("Stalemate; game over")
-        game_state = TERMINATED
         return GAME_STALEMATE
     elif board.is_checkmate():
         print("Checkmate; game over")
-        game_state = TERMINATED
         return GAME_CHECKMATE
     else:
         print("The game continues")
