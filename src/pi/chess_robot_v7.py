@@ -51,7 +51,7 @@ HUMAN_MOVE       =       0x0A350000000000 # 5 operand bytes for UCI representati
 ROBOT_MOVE       =       0x0A460000000000 # 5 operand bytes for UCI representation of move (fill in trailing zeroes with move)
 ILLEGAL_MOVE     =       0x0A50           # Declare the human has made an illegal move
 
-# MOVE TIME
+# MOVE TIME (seconds)
 MOVE_TIME = 2
 
 def bytes_to_int(byte_stream):
@@ -140,7 +140,8 @@ def main():
             if (op_len > 0):
                 # Read the number of bytes given by op_len
                 raw_operand = ser.read(op_len)
-
+				
+				# Check for shorter operand than expected
                 if len(raw_operand) < op_len:
                     print(f"Received shorter operand than expected: received {received_msg} with op_len {op_len}, but received len was {len(raw_operand)}: {raw_operand}", flush=True)
                     ser.reset_input_buffer()
@@ -150,8 +151,10 @@ def main():
                 dec_operand = raw_operand.decode('ascii')
                 print(f"Dec operand: {dec_operand}", flush=True)
 
+			# Read the check bytes
             check_bytes = ser.read(2)
 
+			# Check that two check bytes were received
             if len(check_bytes) < 2:
                 print("Didn't receive two check bytes", flush=True)
                 ser.reset_input_buffer()
@@ -227,21 +230,22 @@ def main():
                 # Send the ROBOT_MOVE_INSTR to the MSP
                 ser.write(bytearray(robot_move_instr_bytes))
                 print(f"Sent move {stockfish_next_move_uci}", flush=True)
-                # Check for ACK sendback
+                # Check for ACK feedback
                 while not check_for_ack(robot_move_instr_bytes):
                     pass
 
             elif instr == HUMAN_MOVE_INSTR:
                 # Remove the '_' from the move, or leave any promotions
+				# If the input string throws an error upon conversion, send back ILLEGAL_MOVE
                 try:
                     print(f"Human makes move: {parse_move(dec_operand)}", flush=True)
                     player_next_move = chess.Move.from_uci(parse_move(dec_operand))
                 except (ValueError, TypeError) as e:
                     illegal_move_instr_bytes = [START_BYTE, ILLEGAL_MOVE_INSTR_AND_LEN]
                     illegal_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(illegal_move_instr_bytes))
-                    ser.write(bytearray(illegal_move_instr_bytes))
+                    ser.write(bytearray(illegal_move_instr_bytes)) # ILLEGAL_MOVE
                     print("Illegal move made", flush=True)
-                    # Check for ACK sendback
+                    # Check for ACK feedback
                     while not check_for_ack(illegal_move_instr_bytes):
                         pass
 
@@ -253,7 +257,7 @@ def main():
                     illegal_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(illegal_move_instr_bytes))
                     ser.write(bytearray(illegal_move_instr_bytes)) # ILLEGAL_MOVE
                     print("Illegal move made", flush=True)
-                    # Check for ACK sendback
+                    # Check for ACK feedback
                     while not check_for_ack(illegal_move_instr_bytes):
                         pass
 
@@ -275,9 +279,9 @@ def main():
                         # Append the check bytes to the bytes preceding them
                         robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                         # Send ROBOT_MOVE_INSTR to the MSP; the player has ended the game at this point
-                        ser.write(bytearray(robot_move_instr_bytes))
+                        ser.write(bytearray(robot_move_instr_bytes)) # ROBOT_MOVE
                         print(f"Game over!", flush=True)
-                        # Check for ACK sendback
+                        # Check for ACK feedback
                         while not check_for_ack(robot_move_instr_bytes):
                             pass
                     else:
@@ -304,12 +308,12 @@ def main():
                         # Append the check bytes to the bytes preceding them
                         robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                         # Send the ROBOT_MOVE_INSTR to the MSP
-                        ser.write(bytearray(robot_move_instr_bytes))
+                        ser.write(bytearray(robot_move_instr_bytes)) # ROBOT_MOVE
                         print(f"Sent move {stockfish_next_move_uci}; \n{robot_move_instr_bytes}", flush=True)
                         # If the robot's last move ended the game
                         if status_after_robot != GAME_ONGOING:
                             print("Game over!", flush=True)
-                        # Check for ACK sendback
+                        # Check for ACK feedback
                         while not check_for_ack(robot_move_instr_bytes):
                             pass
 
@@ -448,6 +452,15 @@ def validate_transmission(message: list) -> bool:
 
 
 def check_for_ack(sent_message: list) -> bool:
+	"""
+	Checks for an ACK from the MSP432 by reading for an ACK. If an ACK is not received 
+	in 5 seconds or the ACK is not the correct value (0x0F), the message is resent every 5 
+	seconds until a proper ACK is received. 
+
+	:param list: The message to resend if an ACK is not received
+
+	:returns: True if an ACK is received, False otherwise
+	"""
     ack = ser.read(1)
     if len(ack) == 0:
         print("Didn't receive an ack. Resending...", flush=True)
