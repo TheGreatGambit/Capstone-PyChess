@@ -209,10 +209,6 @@ def main():
                 stockfish_next_move = engine.play(board, chess.engine.Limit(time=MOVE_TIME)).move
                 # Convert the Move object to a UCI string
                 stockfish_next_move_uci = stockfish_next_move.uci()
-                # If it's a promotion, it will be overriden to a queen automatically
-                if len(stockfish_next_move_uci) == 5:
-                    stockfish_next_move_uci[4] = 'Q'
-
                 # Get the fifth operand byte to be sent
                 fifth_byte = get_fifth_byte(board, stockfish_next_move)
                 # Update the board with the robot's move
@@ -253,6 +249,7 @@ def main():
 
                 # If the move the player made was not legal, do not push it; alert the MSP
                 if player_next_move not in board.legal_moves:
+                    print("Human makes move: {parse_move(dec_operand)}", flush=True)
                     illegal_move_instr_bytes = [START_BYTE, ILLEGAL_MOVE_INSTR_AND_LEN]
                     illegal_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(illegal_move_instr_bytes))
                     ser.write(bytearray(illegal_move_instr_bytes)) # ILLEGAL_MOVE
@@ -291,7 +288,9 @@ def main():
                         stockfish_next_move_uci = stockfish_next_move.uci()
                         # If it's a promotion, it will be overriden to a queen automatically
                         if len(stockfish_next_move_uci) == 5:
-                            stockfish_next_move_uci[4] = 'Q'
+                            stockfish_next_move_uci_ls = list(stockfish_next_move_uci)
+                            stockfish_next_move_uci_ls[4] = 'q'
+                            stockfish_next_move_uci = ''.join(stockfish_next_move_uci_ls)
                         
                         # Get the fifth operand byte to be sent
                         fifth_byte = get_fifth_byte(board, stockfish_next_move)
