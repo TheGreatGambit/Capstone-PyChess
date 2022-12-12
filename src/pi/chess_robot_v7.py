@@ -206,13 +206,13 @@ def main():
                 player_color = "B"
 
                 # Get Stockfish's move in 1 second
-                stockfish_next_move = engine.play(board, chess.engine.Limit(time=MOVE_TIME)).move
+                stockfish_next_move = engine.play(board, chess.engine.Limit(time=MOVE_TIME)).move.uci()
                 # Convert the Move object to a UCI string
-                stockfish_next_move_uci = stockfish_next_move.uci()
+                # stockfish_next_move_uci = stockfish_next_move.uci()
                 # Get the fifth operand byte to be sent
                 fifth_byte = get_fifth_byte(board, stockfish_next_move)
                 # Update the board with the robot's move
-                board.push(chess.Move.from_uci(stockfish_next_move_uci))
+                board.push(chess.Move.from_uci(stockfish_next_move))
                 # Print the new board
                 print(board, flush=True)
                 # Check the game state after the robot has decided its move
@@ -220,12 +220,12 @@ def main():
                 # Form the game status byte with robot's move (player didn't move before, so its 4 bits are forced to GAME_ONGOING)
                 game_status_byte = (GAME_ONGOING << 4) + status_after_robot
                 # Package the bytes (ord(c) converts characters to ASCII encodings)
-                robot_move_instr_bytes = [START_BYTE, ROBOT_MOVE_INSTR_AND_LEN] + [ord(c) for c in stockfish_next_move_uci] + [ord(fifth_byte), game_status_byte]
+                robot_move_instr_bytes = [START_BYTE, ROBOT_MOVE_INSTR_AND_LEN] + [ord(c) for c in stockfish_next_move[0:4]] + [ord(fifth_byte), game_status_byte]
                 # Append the checksum to the bytes preceding it
                 robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                 # Send the ROBOT_MOVE_INSTR to the MSP
                 ser.write(bytearray(robot_move_instr_bytes))
-                print(f"Sent move {stockfish_next_move_uci}", flush=True)
+                print(f"Sent move {stockfish_next_move}", flush=True)
                 # Check for ACK feedback
                 while not check_for_ack(robot_move_instr_bytes):
                     pass
@@ -283,19 +283,19 @@ def main():
                             pass
                     else:
                         # Get Stockfish's move in 1 second
-                        stockfish_next_move = engine.play(board, chess.engine.Limit(time=MOVE_TIME)).move
+                        stockfish_next_move = engine.play(board, chess.engine.Limit(time=MOVE_TIME)).move.uci()
                         # Convert the Move object to a UCI string
-                        stockfish_next_move_uci = stockfish_next_move.uci()
+                        # stockfish_next_move_uci = stockfish_next_move.uci()
                         # If it's a promotion, it will be overriden to a queen automatically
-                        if len(stockfish_next_move_uci) == 5:
-                            stockfish_next_move_uci_ls = list(stockfish_next_move_uci)
-                            stockfish_next_move_uci_ls[4] = 'q'
-                            stockfish_next_move_uci = ''.join(stockfish_next_move_uci_ls)
+                        if len(stockfish_next_move) == 5:
+                            stockfish_next_move_ls = list(stockfish_next_move)
+                            stockfish_next_move_ls[4] = 'q'
+                            stockfish_next_move = ''.join(stockfish_next_move_ls)
                         
                         # Get the fifth operand byte to be sent
                         fifth_byte = get_fifth_byte(board, stockfish_next_move)
                         # Update the board with the robot's move
-                        board.push(chess.Move.from_uci(stockfish_next_move_uci))
+                        board.push(chess.Move.from_uci(stockfish_next_move))
                         # Print the new board
                         print(board, flush=True)
                         # Check the game state after the robot has decided its move
@@ -303,12 +303,12 @@ def main():
                         # Form the game status byte with the statuses after human and robot moves
                         game_status_byte = (status_after_player << 4) + status_after_robot
                         # Package the bytes (ord(c) converts characters to ASCII encodings)
-                        robot_move_instr_bytes = [START_BYTE, ROBOT_MOVE_INSTR_AND_LEN] + [ord(c) for c in stockfish_next_move_uci] + [ord(fifth_byte), game_status_byte]
+                        robot_move_instr_bytes = [START_BYTE, ROBOT_MOVE_INSTR_AND_LEN] + [ord(c) for c in stockfish_next_move[0:4]] + [ord(fifth_byte), game_status_byte]
                         # Append the check bytes to the bytes preceding them
                         robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                         # Send the ROBOT_MOVE_INSTR to the MSP
                         ser.write(bytearray(robot_move_instr_bytes)) # ROBOT_MOVE
-                        print(f"Sent move {stockfish_next_move_uci}; \n{robot_move_instr_bytes}", flush=True)
+                        print(f"Sent move {stockfish_next_move}; \n{robot_move_instr_bytes}", flush=True)
                         # If the robot's last move ended the game
                         if status_after_robot != GAME_ONGOING:
                             print("Game over!", flush=True)
