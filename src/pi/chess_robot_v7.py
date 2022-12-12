@@ -140,8 +140,8 @@ def main():
             if (op_len > 0):
                 # Read the number of bytes given by op_len
                 raw_operand = ser.read(op_len)
-				
-				# Check for shorter operand than expected
+
+                # Check for shorter operand than expected
                 if len(raw_operand) < op_len:
                     print(f"Received shorter operand than expected: received {received_msg} with op_len {op_len}, but received len was {len(raw_operand)}: {raw_operand}", flush=True)
                     ser.reset_input_buffer()
@@ -151,10 +151,10 @@ def main():
                 dec_operand = raw_operand.decode('ascii')
                 print(f"Dec operand: {dec_operand}", flush=True)
 
-			# Read the check bytes
+            # Read the check bytes
             check_bytes = ser.read(2)
 
-			# Check that two check bytes were received
+            # Check that two check bytes were received
             if len(check_bytes) < 2:
                 print("Didn't receive two check bytes", flush=True)
                 ser.reset_input_buffer()
@@ -236,7 +236,7 @@ def main():
 
             elif instr == HUMAN_MOVE_INSTR:
                 # Remove the '_' from the move, or leave any promotions
-				# If the input string throws an error upon conversion, send back ILLEGAL_MOVE
+                # If the input string throws an error upon conversion, send back ILLEGAL_MOVE
                 try:
                     print(f"Human makes move: {parse_move(dec_operand)}", flush=True)
                     player_next_move = chess.Move.from_uci(parse_move(dec_operand))
@@ -452,15 +452,15 @@ def validate_transmission(message: list) -> bool:
 
 
 def check_for_ack(sent_message: list) -> bool:
-	"""
-	Checks for an ACK from the MSP432 by reading for an ACK. If an ACK is not received 
-	in 5 seconds or the ACK is not the correct value (0x0F), the message is resent every 5 
-	seconds until a proper ACK is received. 
+    """
+    Checks for an ACK from the MSP432 by reading for an ACK. If an ACK is not received 
+    in 5 seconds or the ACK is not the correct value (0x0F), the message is resent every 5 
+    seconds until a proper ACK is received. 
 
-	:param list: The message to resend if an ACK is not received
+    :param list: The message to resend if an ACK is not received
 
-	:returns: True if an ACK is received, False otherwise
-	"""
+    :returns: True if an ACK is received, False otherwise
+    """
     ack = ser.read(1)
     if len(ack) == 0:
         print("Didn't receive an ack. Resending...", flush=True)
