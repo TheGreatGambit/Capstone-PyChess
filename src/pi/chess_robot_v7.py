@@ -16,7 +16,7 @@ __author__ = "Keenan Alchaar"
 __copyright__ = "Copyright 2022"
 __version__ = "v7"
 __email__ = "ka5nt@virginia.edu"
-__status__ = "Development"
+__status__ = "Production"
 
 # PACKET STRUCTURE DEFINES
 START_BYTE           =   0x0A             # Start byte at beginning of every instruction
@@ -207,8 +207,6 @@ def main():
 
                 # Get Stockfish's move in 1 second
                 stockfish_next_move = engine.play(board, chess.engine.Limit(time=MOVE_TIME)).move.uci()
-                # Convert the Move object to a UCI string
-                # stockfish_next_move_uci = stockfish_next_move.uci()
                 # Get the fifth operand byte to be sent
                 fifth_byte = get_fifth_byte(board, stockfish_next_move)
                 # Update the board with the robot's move
@@ -224,6 +222,7 @@ def main():
                 # Append the checksum to the bytes preceding it
                 robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                 # Send the ROBOT_MOVE_INSTR to the MSP
+                ser.reset_input_buffer()
                 ser.write(bytearray(robot_move_instr_bytes))
                 print(f"Sent move {stockfish_next_move}", flush=True)
                 # Check for ACK feedback
@@ -249,7 +248,7 @@ def main():
 
                 # If the move the player made was not legal, do not push it; alert the MSP
                 if player_next_move not in board.legal_moves:
-                    print("Human makes move: {parse_move(dec_operand)}", flush=True)
+                    print(f"Human makes move: {parse_move(dec_operand)}", flush=True)
                     illegal_move_instr_bytes = [START_BYTE, ILLEGAL_MOVE_INSTR_AND_LEN]
                     illegal_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(illegal_move_instr_bytes))
                     ser.write(bytearray(illegal_move_instr_bytes)) # ILLEGAL_MOVE
@@ -277,15 +276,13 @@ def main():
                         robot_move_instr_bytes += fl16_get_check_bytes(fletcher16_nums(robot_move_instr_bytes))
                         # Send ROBOT_MOVE_INSTR to the MSP; the player has ended the game at this point
                         ser.write(bytearray(robot_move_instr_bytes)) # ROBOT_MOVE
-                        print(f"Game over!", flush=True)
+                        print("Game over!", flush=True)
                         # Check for ACK feedback
                         while not check_for_ack(robot_move_instr_bytes):
                             pass
                     else:
                         # Get Stockfish's move in 1 second
                         stockfish_next_move = engine.play(board, chess.engine.Limit(time=MOVE_TIME)).move.uci()
-                        # Convert the Move object to a UCI string
-                        # stockfish_next_move_uci = stockfish_next_move.uci()
                         # If it's a promotion, it will be overriden to a queen automatically
                         if len(stockfish_next_move) == 5:
                             stockfish_next_move_ls = list(stockfish_next_move)
@@ -344,7 +341,7 @@ def parse_move(move: str) -> str:
         return move[0:4]
 
 
-def get_fifth_byte(board: chess.Board, move: chess.Move) -> str:
+def get_fifth_byte(board: chess.Board, move_uci: str) -> str:
     """
     Given a move object and a board state object, returns the appropriate fifth byte to 
     describe the nature of the move to the MSP. 
@@ -355,6 +352,7 @@ def get_fifth_byte(board: chess.Board, move: chess.Move) -> str:
     :returns: A one-character string which will be appended to the other 4 characters of the UCI 
               string to be sent to the MSP. 
     """
+    move = chess.Move.from_uci(move_uci)
     # Castling
     if board.is_castling(move):
         return "c"
@@ -470,7 +468,7 @@ def check_for_ack(sent_message: list) -> bool:
         print("Received ack", flush=True)
         return True
     else:
-        print(f"Bad ack received. Resending... (received {ack})", flush=True)
+        print(f"Bad ack received. Resending... (received {bytes_to_int(ack)})", flush=True)
         ser.write(sent_message)
         return False
 
